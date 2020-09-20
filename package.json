@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "An easy to use lexer and parser combinator library.",
   "main": "index.js",
-  "dependencies": {},
+  "dependencies": {
+    "line-column": "^1.0.2",
+    "universal-lexer": "^2.0.6"
+  },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"No test provided.\""
