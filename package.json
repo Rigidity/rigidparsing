@@ -1,16 +1,29 @@
 {
-  "name": "params",
+  "name": "rigidparsing",
   "version": "1.0.0",
-  "description": "",
+  "description": "An easy to use lexer and parser combinator library.",
   "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No test provided.\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "line-column": "^1.0.2",
-    "universal-lexer": "^2.0.6"
-  }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rigidity/RigidParsing.git"
+  },
+  "keywords": [
+    "lex",
+    "lexer",
+    "parse",
+    "parser",
+    "tokens",
+    "ast"
+  ],
+  "author": "Rigidity",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Rigidity/RigidParsing/issues"
+  },
+  "homepage": "https://github.com/Rigidity/RigidParsing#readme"
 }
