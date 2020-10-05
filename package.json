@@ -4,8 +4,7 @@
   "description": "An easy to use lexer and parser combinator library.",
   "main": "index.js",
   "dependencies": {
-    "line-column": "^1.0.2",
-    "universal-lexer": "^2.0.6"
+    "line-column": "^1.0.2"
   },
   "devDependencies": {},
   "scripts": {
