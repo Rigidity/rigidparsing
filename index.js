@@ -93,7 +93,8 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 				parent.text = cur.text;
 				parent.ast.push({
 					key: cur.name,
-					val: cur.ast
+					val: cur.ast,
+					parent: parent
 				});
 			}
 			continue;
