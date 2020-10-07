@@ -40,10 +40,20 @@ These perform the steps taken in the parser. You can use these for your rules to
 * `"string"` Matches a string token.  
 * `/regex/` Matches a regex token.  
 * `Rule(name)` Matches a rule.  
-* `And(...items)` Matches a list in sequence.  
+* `And(...items)` Matches a list in sequence in a new scope.  
 * `Or(...items)` Matches any of a set of options.  
 * `One(...items)` Matches one or more of a set of items.  
 * `Zero(...items)` Matches zero or more of a set of items.  
 * `Opt(...items)` Optionally matches a set of items.  
+* `None(...items)` Matches none of a set of items.  
+* `Range(from, to, ...items)` Matches a number of the set of items between two amounts inclusively.  
 * `Hide(...items)` Matches a set of items but hides the result.  
 * `Wrap(name, ...items)` Wraps the result of a set of items into a named rule.  
+* `Insert(token)` Inserts a token into the abstract syntax tree at the current level.  
+* `Convert(handler)` Replaces the last token with the result of the handler called with that token as an argument.  
+* `Modify(handler)` Calls the handler with the last token as an argument.  
+* `Custom(handler)` Calls the handler with the current parser `stack`, the set of `rules`, the `source` text, the `count` of iterations, the iteration `limit`, and the `main` rule.  
+* `Error(data)` Throws an error with the data provided.  
+* `Log(data)` Prints the data provided to the console.  
+* `Meta(key, val)` Defines a property on the last token.  
+* `Clear()` Clears all of the previously matched tokens on the current tree.  
