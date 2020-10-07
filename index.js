@@ -10,7 +10,7 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 		text: source
 	}];
 	function error(data = null) {
-		const index = source.length - cur.text.length;
+		const index = source.length - stack[stack.length - 1].text.length - 1;
 		const {line, col} = linecolumn(source, index);
 		throw {
 			index, line, column: col, data
@@ -270,10 +270,10 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 				} catch(e) {
 					error(e);
 				}
-			} else if (name == 'error') {
+			} else if (name == 'err') {
 				error(data);
 			} else if (name == 'log') {
-				log(data);
+				console.log(data);
 			} else if (name == 'meta') {
 				const token = cur.ast[cur.ast.length - 1];
 				if (token !== undefined) {
@@ -308,13 +308,13 @@ const None = (...items) => ['none', items.length > 1 ? And(...items) : items[0]]
 const Range = (from, to, ...items) => ['range', [from, to, items]];
 const One = (...items) => ['one', items.length > 1 ? And(...items) : items[0]];
 const Rule = item => ['rule', item];
-const Hide = item => ['hide', item];
+const Hide = (...items) => ['hide', items.length > 1 ? And(...items) : items[0]];
 const Wrap = (name, ...items) => ['wrap', [name, items]];
 const Insert = content => ['insert', content];
 const Convert = handler => ['convert', handler];
 const Custom = handler => ['custom', handler];
 const Modify = handler => ['modify', handler];
-const Error = data => ['error', data];
+const Err = data => ['err', data];
 const Log = data => ['log', data];
 const Meta = (key, val) => ['meta', [key, val]];
 const Clear = () => ['clear'];
@@ -325,5 +325,5 @@ module.exports = {
 	None, Opt, Zero, One, Range,
 	Rule, Hide, Wrap, Insert,
 	Convert, Custom, Modify,
-	Error, Log, Meta, Clear
+	Err, Log, Meta, Clear
 };

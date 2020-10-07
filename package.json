@@ -1,6 +1,6 @@
 {
   "name": "rigidparsing",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "An easy to use parser combinator library.",
   "main": "index.js",
   "dependencies": {
@@ -8,7 +8,7 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "echo \"No test provided.\""
+    "test": "node test.js"
   },
   "repository": {
     "type": "git",
