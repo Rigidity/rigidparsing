@@ -10,7 +10,7 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 		text: source
 	}];
 	function error(data = null) {
-		const index = source.length - stack[stack.length - 1].text.length - 1;
+		const index = source.length - stack[stack.length - 1].text.length;
 		const {line, col} = linecolumn(source, index);
 		throw {
 			index, line, column: col, data
@@ -130,6 +130,24 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 			if (cur.text.length) cur.items.push(cur.items[0]);
 		} else if (cur.type == 'run' && (cur.error || !cur.items.length)) {
 			break;
+		} else if (cur.type == 'scope') {
+			if (!cur.items.length || !(cur.mid(cur, {
+				stack, count, source,
+				rules, main, limit
+			}) ?? true)) {
+				stack.pop();
+				const parent = stack[stack.length - 1];
+				if (cur.end(cur, {
+					stack, count, source,
+					rules, main, limit
+				}) ?? true) {
+					parent.matches++;
+					parent.text = cur.text;
+					append(parent.ast, cur.ast);
+					continue;
+				}
+				else break;
+			}
 		}
 		const item = cur.items.shift();
 		if (typeof item == 'string') {
@@ -261,12 +279,39 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 				} catch(e) {
 					error(e);
 				}
+			} else if (name == 'apply') {
+				try {
+					cur.ast = data(cur.ast) ?? cur.ast;
+				} catch(e) {
+					error(e);
+				}
 			} else if (name == 'custom') {
 				try {
 					data({
 						stack, count, source,
 						rules, main, limit
 					});
+				} catch(e) {
+					error(e);
+				}
+			} else if (name == 'scope') {
+				const scope = {
+					type: 'scope',
+					error: false,
+					matches: 0,
+					text: cur.text,
+					items: [],
+					ast: [],
+					mid: data[1],
+					end: data[2]
+				};
+				try {
+					if (data[0](scope, {
+						stack, count, source,
+						rules, main, limit
+					}) ?? true) {
+						stack.push(scope);
+					}
 				} catch(e) {
 					error(e);
 				}
@@ -314,16 +359,18 @@ const Insert = content => ['insert', content];
 const Convert = handler => ['convert', handler];
 const Custom = handler => ['custom', handler];
 const Modify = handler => ['modify', handler];
+const Apply = handler => ['apply', handler];
 const Err = data => ['err', data];
 const Log = data => ['log', data];
 const Meta = (key, val) => ['meta', [key, val]];
 const Clear = () => ['clear'];
+const Scope = (start, mid, stop) => ['scope', [start, mid, stop]];
 
 module.exports = {
 	run,
 	And, Or,
 	None, Opt, Zero, One, Range,
 	Rule, Hide, Wrap, Insert,
-	Convert, Custom, Modify,
-	Err, Log, Meta, Clear
+	Convert, Custom, Modify, Apply,
+	Err, Log, Meta, Clear, Scope
 };

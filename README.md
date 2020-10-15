@@ -52,8 +52,10 @@ These perform the steps taken in the parser. You can use these for your rules to
 * `Insert(token)` Inserts a token into the abstract syntax tree at the current level.  
 * `Convert(handler)` Replaces the last token with the result of the handler called with that token as an argument.  
 * `Modify(handler)` Calls the handler with the last token as an argument.  
+* `Apply(handler)` Calls the handler with the token list token as an argument and the return value is the modified token list.  
 * `Custom(handler)` Calls the handler with the current parser `stack`, the set of `rules`, the `source` text, the `count` of iterations, the iteration `limit`, and the `main` rule.  
 * `Error(data)` Throws an error with the data provided.  
 * `Log(data)` Prints the data provided to the console.  
 * `Meta(key, val)` Defines a property on the last token.  
 * `Clear()` Clears all of the previously matched tokens on the current tree.  
+* `Scope(starthandler, midhandler, stophandler)` Calls the `starthandler` with a new scope and pushes it on the stack, then every iteration it executes the `midhandler`, and finally the `stophandler` once it's finished. The handlers are each executed with the current scope and the same properties as the `Custom` combinator as the two arguments.  
