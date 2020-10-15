@@ -11,7 +11,9 @@ function run(source, rules, {main = 'main', limit = 0} = {}) {
 	}];
 	function error(data = null) {
 		const index = source.length - stack[stack.length - 1].text.length;
-		const {line, col} = linecolumn(source, index);
+		const {line, col} = linecolumn(source, index) ?? {
+			line: 1, col: 0
+		};
 		throw {
 			index, line, column: col, data
 		};
