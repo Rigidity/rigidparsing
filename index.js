@@ -1,339 +1,14 @@
-const linecolumn = require('line-column');
-
-function run(source, rules, {main = 'main', limit = 0} = {}) {
-	const stack = [{
-		type: 'run',
-		error: false,
-		matches: 0,
-		ast: [],
-		items: [rules[main]],
-		text: source
-	}];
-	function error(data = null) {
-		const index = source.length - stack[stack.length - 1].text.length;
-		const {line, col} = linecolumn(source, index) ?? {
-			line: 1, col: 0
-		};
-		throw {
-			index, line, column: col, data
-		};
+function linecolumn(index, text) {
+	const lines = text.split('\n');
+	const count = lines.length;
+	while (lines.length && index >= lines[0].length) {
+		index -= lines[0].length;
+		lines.shift();
 	}
-	let count = 0;
-	while (true) {
-		if (limit != 0 && ++count > limit) {
-			throw new Error('Limit reached.');
-		}
-		if (!stack.length) break;
-		let cur = stack[stack.length - 1];
-		if (cur.type == 'run' && cur.error) {
-			error();
-		} else if (cur.type == 'and' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.error) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'or' && (cur.matches > 0 || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.matches == 0) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'none' && ((!cur.error && cur.matches > 0) || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.matches == 0 || cur.error) {
-				parent.matches++;
-				parent.text = cur.text;
-			} else {
-				parent.error = true;
-			}
-			continue;
-		} else if (cur.type == 'zero' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.matches != 0) {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'one' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.matches == 0) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'range' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if ((cur.from !== null && cur.matches < cur.from) || (cur.to !== null && cur.matches > cur.to)) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'opt' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (!cur.error) {
-				parent.matches++;
-				parent.text = cur.text;
-				append(parent.ast, cur.ast);
-			}
-			continue;
-		} else if (cur.type == 'hide' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.error) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-			}
-			continue;
-		} else if (cur.type == 'wrap' && (cur.error || !cur.items.length)) {
-			stack.pop();
-			const parent = stack[stack.length - 1];
-			if (cur.error) {
-				parent.error = true;
-			} else {
-				parent.matches++;
-				parent.text = cur.text;
-				parent.ast.push({
-					key: cur.name,
-					val: cur.ast,
-					list: parent.ast
-				});
-			}
-			continue;
-		} else if (cur.type == 'zero') {
-			if (cur.text.length) cur.items.push(cur.items[0]);
-		} else if (cur.type == 'one') {
-			if (cur.text.length) cur.items.push(cur.items[0]);
-		} else if (cur.type == 'range') {
-			if (cur.text.length) cur.items.push(cur.items[0]);
-		} else if (cur.type == 'run' && (cur.error || !cur.items.length)) {
-			break;
-		} else if (cur.type == 'scope') {
-			if (!cur.items.length || !(cur.mid(cur, {
-				stack, count, source,
-				rules, main, limit
-			}) ?? true)) {
-				stack.pop();
-				const parent = stack[stack.length - 1];
-				if (cur.end(cur, {
-					stack, count, source,
-					rules, main, limit
-				}) ?? true) {
-					parent.matches++;
-					parent.text = cur.text;
-					append(parent.ast, cur.ast);
-					continue;
-				}
-				else break;
-			}
-		}
-		const item = cur.items.shift();
-		if (typeof item == 'string') {
-			if (cur.text.startsWith(item)) {
-				cur.text = cur.text.slice(item.length);
-				cur.ast.push({
-					text: item,
-					start: source.length - cur.text.length - item.length,
-					stop: source.length - cur.text.length
-				});
-				cur.matches++;
-			} else {
-				cur.error = true;
-			}
-		} else if (item instanceof RegExp) {
-			const match = cur.text.match(item);
-			if (match !== null && match.index == 0) {
-				cur.text = cur.text.slice(match[0].length);
-				cur.ast.push({
-					text: match[0],
-					start: source.length - cur.text.length - match[0].length,
-					stop: source.length - cur.text.length
-				});
-				cur.matches++;
-			} else {
-				cur.error = true;
-			}
-		} else {
-			let [name, data] = item;
-			if (name == 'rule') {
-				cur.items.unshift(rules[data]);
-			} else if (name == 'or') {
-				stack.push({
-					type: 'or',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: data.slice(),
-					ast: []
-				});
-			} else if (name == 'and') {
-				stack.push({
-					type: 'and',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: data.slice(),
-					ast: []
-				});
-			} else if (name == 'none') {
-				stack.push({
-					type: 'none',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [data],
-					ast: []
-				});
-			} else if (name == 'zero') {
-				stack.push({
-					type: 'zero',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [data],
-					ast: []
-				});
-			} else if (name == 'one') {
-				stack.push({
-					type: 'one',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [data],
-					ast: []
-				});
-			} else if (name == 'opt') {
-				stack.push({
-					type: 'opt',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [data],
-					ast: []
-				});
-			} else if (name == 'hide') {
-				stack.push({
-					type: 'hide',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [data],
-					ast: []
-				});
-			} else if (name == 'wrap') {
-				stack.push({
-					type: 'wrap',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					name: data[0],
-					items: data[1].slice(),
-					ast: []
-				});
-			} else if (name == 'range') {
-				stack.push({
-					type: 'range',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					from: data[0],
-					to: data[1],
-					items: data[2].slice(),
-					ast: []
-				});
-			} else if (name == 'insert') {
-				cur.ast.push(data);
-			} else if (name == 'convert') {
-				const token = cur.ast.pop();
-				try {
-					cur.ast.push(data(token));
-				} catch(e) {
-					error(e);
-				}
-			} else if (name == 'modify') {
-				const token = cur.ast[cur.ast.length - 1];
-				try {
-					data(token);
-				} catch(e) {
-					error(e);
-				}
-			} else if (name == 'apply') {
-				try {
-					cur.ast = data(cur.ast) ?? cur.ast;
-				} catch(e) {
-					error(e);
-				}
-			} else if (name == 'custom') {
-				try {
-					data({
-						stack, count, source,
-						rules, main, limit
-					});
-				} catch(e) {
-					error(e);
-				}
-			} else if (name == 'scope') {
-				const scope = {
-					type: 'scope',
-					error: false,
-					matches: 0,
-					text: cur.text,
-					items: [],
-					ast: [],
-					mid: data[1],
-					end: data[2]
-				};
-				try {
-					if (data[0](scope, {
-						stack, count, source,
-						rules, main, limit
-					}) ?? true) {
-						stack.push(scope);
-					}
-				} catch(e) {
-					error(e);
-				}
-			} else if (name == 'err') {
-				error(data);
-			} else if (name == 'log') {
-				console.log(data);
-			} else if (name == 'meta') {
-				const token = cur.ast[cur.ast.length - 1];
-				if (token !== undefined) {
-					token[data[0]] = data[1];
-				}
-			} else if (name == 'clear') {
-				cur.ast.length = 0;
-			}
-		}
+	return {
+		line: count - lines.length,
+		column: index
 	}
-	const cur = stack[stack.length - 1];
-	if (cur.text.length) error();
-	return cur.ast;
 }
 
 function append(target, source) {
@@ -347,32 +22,292 @@ function prepend(target, source) {
 	}
 }
 
-const And = (...items) => ['and', items];
-const Or = (...items) => ['or', items];
-const Opt = (...items) => ['opt', items.length > 1 ? And(...items) : items[0]];
-const Zero = (...items) => ['zero', items.length > 1 ? And(...items) : items[0]];
-const None = (...items) => ['none', items.length > 1 ? And(...items) : items[0]];
-const Range = (from, to, ...items) => ['range', [from, to, items]];
-const One = (...items) => ['one', items.length > 1 ? And(...items) : items[0]];
-const Rule = item => ['rule', item];
-const Hide = (...items) => ['hide', items.length > 1 ? And(...items) : items[0]];
-const Wrap = (name, ...items) => ['wrap', [name, items]];
-const Insert = content => ['insert', content];
-const Convert = handler => ['convert', handler];
-const Custom = handler => ['custom', handler];
-const Modify = handler => ['modify', handler];
-const Apply = handler => ['apply', handler];
-const Err = data => ['err', data];
-const Log = data => ['log', data];
-const Meta = (key, val) => ['meta', [key, val]];
-const Clear = () => ['clear'];
-const Scope = (start, mid, stop) => ['scope', [start, mid, stop]];
+class Context {
+	constructor(text, rules, options = {}) {
+		this.text = text;
+		this.rules = rules;
+		this.options = options;
+		this.stack = [];
+	}
+	scope() {
+		return this.stack[this.stack.length - 1];
+	}
+}
+
+class Scope {
+	constructor(text, ...items) {
+		this.error = false;
+		this.matches = 0;
+		this.text = text;
+		this.items = items;
+		this.tokens = [];
+		this.check = null;
+		this.exit = null;
+		this.source = '';
+	}
+}
+
+class Token {
+	constructor(text, start, stop) {
+		this.text = text;
+		this.start = start;
+		this.stop = stop;
+	}
+}
+
+function runSync(text, rules, options = {}) {
+	const main = options.main ?? 'main';
+	const debug = options.debug ?? false;
+	if (rules[main] === undefined) throw new Error('The main rule is not defined.');
+	const context = new Context(text, rules, options);
+	const root = new Scope(context.text);
+	root.items = [rules[main]];
+	context.stack.push(root);
+	function error(data = null) {
+		const index = text.length - root.text.length;
+		throw {
+			...linecolumn(index, text),
+			data
+		};
+	}
+	while (true) {
+		const scope = context.scope();
+		if (scope === undefined) break;
+		if (debug) console.log('[SCOPE]', scope);
+		if (!(scope.check?.() ?? true) || !scope.items.length) {
+			if (scope === root) break;
+			context.stack.pop();
+			const parent = context.scope();
+			parent.source += scope.source;
+			scope.exit?.(parent);
+			continue;
+		}
+		const item = scope.items.shift();
+		if (debug) console.log('[ITEM]', item);
+		if (typeof item == 'string') {
+			if (scope.text.startsWith(item)) {
+				scope.text = scope.text.slice(item.length);
+				const end = text.length - scope.text.length;
+				scope.tokens.push(new Token(item, end - item.length, end));
+				scope.source += item;
+				scope.matches++;
+			} else scope.error = true;
+		} else if (item instanceof RegExp) {
+			const match = scope.text.match(item);
+			if (match !== null && match.index == 0) {
+				scope.text = scope.text.slice(match[0].length);
+				const end = text.length - scope.text.length;
+				scope.tokens.push(new Token(match[0], end - match[0].length, end));
+				scope.source += match[0];
+				scope.matches++;
+			} else scope.error = true;
+		} else item(context);
+	}
+	if (root.text.length || root.error) error();
+	return root.tokens;
+}
+
+async function runAsync(text, rules, options = {}) {
+	const main = options.main ?? 'main';
+	const debug = options.debug ?? false;
+	if (rules[main] === undefined) throw new Error('The main rule is not defined.');
+	const context = new Context(text, rules, options);
+	const root = new Scope(context.text);
+	root.items = [rules[main]];
+	context.stack.push(root);
+	function error(data = null) {
+		const index = text.length - root.text.length;
+		throw {
+			...linecolumn(index, text),
+			data
+		};
+	}
+	while (true) {
+		const scope = context.scope();
+		if (scope === undefined) break;
+		if (debug) console.log('[SCOPE]', scope);
+		if (!((await scope.check?.()) ?? true) || !scope.items.length) {
+			context.stack.pop();
+			await scope.exit?.(context.scope());
+			continue;
+		}
+		const item = scope.items.shift();
+		if (debug) console.log('[ITEM]', item);
+		if (typeof item == 'string') {
+			if (scope.text.startsWith(item)) {
+				scope.text = scope.text.slice(item.length);
+				const end = text.length - scope.text.length;
+				scope.tokens.push(new Token(item, end - item.length, end));
+				scope.matches++;
+			} else scope.error = true;
+		} else if (item instanceof RegExp) {
+			const match = scope.text.match(item);
+			if (match !== null && match.index == 0) {
+				scope.text = scope.text.slice(match[0].length);
+				const end = text.length - scope.text.length;
+				scope.tokens.push(new Token(match[0], end - match[0].length, end));
+				scope.matches++;
+			} else scope.error = true;
+		} else await item(context);
+	}
+	if (root.text.length || root.error) error();
+	return root.tokens;
+}
+
+function run(text, rules, options = {}) {
+	return (options.async ?? false) ? runAsync(text, rules, options) : runSync(text, rules, options);
+}
+
+const And = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	append(scope.items, items);
+	scope.check = () => !scope.error;
+	scope.exit = parent => {
+		if (scope.error) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Hide = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	append(scope.items, items);
+	scope.check = () => !scope.error;
+	scope.exit = parent => {
+		if (scope.error) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Wrap = (name, ...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	append(scope.items, items);
+	scope.check = () => !scope.error;
+	scope.exit = parent => {
+		if (scope.error) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			parent.tokens.push({
+				key: name,
+				val: scope.tokens,
+				text: scope.source
+			});
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Group = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	append(scope.items, items);
+	scope.check = () => !scope.error;
+	scope.exit = parent => {
+		if (scope.error) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			parent.tokens.push(scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const One = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	scope.items = items.length > 1 ? [And(...items)] : items;
+	scope.check = () => {
+		if (scope.error) return false;
+		if (scope.text.length) scope.items.push(scope.items[0]);
+		return true;
+	};
+	scope.exit = parent => {
+		if (!scope.matches) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Zero = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	scope.items = items.length > 1 ? [And(...items)] : items;
+	scope.check = () => {
+		if (scope.error) return false;
+		if (scope.text.length) scope.items.push(scope.items[0]);
+		return true;
+	};
+	scope.exit = parent => {
+		if (scope.matches) {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Opt = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	scope.items = items.length > 1 ? [And(...items)] : items;
+	scope.check = () => !scope.error;
+	scope.exit = parent => {
+		if (!scope.error) {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Or = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	append(scope.items, items);
+	scope.check = () => !scope.matches;
+	scope.exit = parent => {
+		if (!scope.matches) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+
+const Rule = (...names) => ctx => {
+	prepend(ctx.scope().items, names.map(name => {
+		const rule = ctx.rules[name];
+		if (rule === undefined) throw new Error(`Cannot find a rule name "${name}"`);
+		return rule;
+	}));
+};
+
+const Insert = (...items) => ctx => {
+	append(ctx.scope().tokens, items);
+};
 
 module.exports = {
-	run,
-	And, Or,
-	None, Opt, Zero, One, Range,
-	Rule, Hide, Wrap, Insert,
-	Convert, Custom, Modify, Apply,
-	Err, Log, Meta, Clear, Scope
+	linecolumn, append, prepend,
+	Context, Scope, Token, run,
+	And, Hide, Wrap, Or, Opt, Zero, One,
+	Rule, Group, Insert
 };

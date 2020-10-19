@@ -15,7 +15,7 @@ const parse = text => run(text, {
 	main: And(Rule('hello'), Rule('ws'), Rule('name'), Hide('!')),
 	hello: Hide(/[hH]ello/),
 	ws: Hide(/\s*/),
-	name: Wrap('name', /[A-Z][a-z]*/)
+	name: Wrap('name', /[a-zA-Z]*/)
 });
 
 const first = 'Hello world!';
@@ -30,10 +30,10 @@ const second = 'Hello Jim!';
 
 ### Runner
 The runner function is used to iteratively execute a recursive set of rules on a chunk of text, to produce an Abstract Syntax Tree (AST), which you can walk later. If an error is found, the index, line, and column of the error will be thrown as an object.
-* `run(text, {rules}, {options})` Builds a parser.  
+* `run(text, {rules}, {options})` Executes a grammar synchronously.  
 * `rule: combinator` What the rule should match.  
 * `options.main = 'main'` The main rule that serves as an entry point when parsing tokens.  
-* `options.limit = 0` The limit to the number of steps that the executor can take, or 0 if no limit should be enforced.
+* `options.async = false` Whether to support asynchronous combinators. Returns a promise if set to `true`.  
 
 ### Combinators
 These perform the steps taken in the parser. You can use these for your rules to easily define your syntax.  
@@ -45,17 +45,65 @@ These perform the steps taken in the parser. You can use these for your rules to
 * `One(...items)` Matches one or more of a set of items.  
 * `Zero(...items)` Matches zero or more of a set of items.  
 * `Opt(...items)` Optionally matches a set of items.  
-* `None(...items)` Matches none of a set of items.  
-* `Range(from, to, ...items)` Matches a number of the set of items between two amounts inclusively.  
 * `Hide(...items)` Matches a set of items but hides the result.  
 * `Wrap(name, ...items)` Wraps the result of a set of items into a named rule.  
+* `Group(name, ...items)` Wraps the result of a set of items into a list.  
 * `Insert(token)` Inserts a token into the abstract syntax tree at the current level.  
-* `Convert(handler)` Replaces the last token with the result of the handler called with that token as an argument.  
-* `Modify(handler)` Calls the handler with the last token as an argument.  
-* `Apply(handler)` Calls the handler with the token list token as an argument and the return value is the modified token list.  
-* `Custom(handler)` Calls the handler with the current parser `stack`, the set of `rules`, the `source` text, the `count` of iterations, the iteration `limit`, and the `main` rule.  
-* `Error(data)` Throws an error with the data provided.  
-* `Log(data)` Prints the data provided to the console.  
-* `Meta(key, val)` Defines a property on the last token.  
-* `Clear()` Clears all of the previously matched tokens on the current tree.  
-* `Scope(starthandler, midhandler, stophandler)` Calls the `starthandler` with a new scope and pushes it on the stack, then every iteration it executes the `midhandler`, and finally the `stophandler` once it's finished. The handlers are each executed with the current scope and the same properties as the `Custom` combinator as the two arguments.  
+
+### Extras
+There are some additional helpers that you can use while extending the library.  
+* `append(target, source)` Appends the source items onto the target list.  
+* `prepend(target, source)` Prepends the source items onto the target list.  
+* `linecolumn(index, text)` Converts an index in a string to a `line` and `column` in an object returned.  
+
+### Context
+This class manages the parser context and has the following properties.  
+`new Context(text, rules, options = {})` Constructor of this class.  
+`text` The original complete source text that the parser is executing upon.  
+`rules` The object that defines the rules for the grammar to use while parsing.  
+`options`  The passed in options object for the parser to use.  
+`stack` The stack of `Scope` objects that are actively being parsed.  
+`scope()` Fetches the currently executing `Scope` object from the `stack`.  
+
+### Scope
+This class defines a combinator that has it's own scope on the `stack` of the `Context`. It contains various information critical to parsing the current text piece by piece.  
+`new Scope(text, ...items)` Constructor of this class.  
+`error = false` Whether or not a combinator has failed thus far.  
+`matches = 0` How many children have successfully matched anything.  
+`text = text` The text that is remaining to be parsed.  
+`items = items` This is the list of combinators to be executed.  
+`tokens = []` This is the list of tokens that have been parsed on this scope so far.  
+`source` The full text that has been parsed by this scope.  
+`check = null` A handler for when the scope is being checked every iteration. Returns `true` if the check is passed, and `false` if the scope should exit.  
+`exit = null` The handler for when the scope exits the stack either through an error or natural ending. It is parsed the `parent` scope as an argument.  
+
+### Token
+This is the result of parsing either a raw string or a regular expression.  
+`new Token(text, start, stop)` Constructor of this class.  
+`text` The matched text of this token.  
+`start` The starting index of this token in the original source text.  
+`stop` The stopping index of this token in the original source text.  
+
+## Customization
+You can define your own combinators and directives for the parser to execute by referring to the documentation above or this example.
+```js
+const Two = (...items) => ctx => {
+	const scope = new Scope(ctx.scope().text);
+	scope.items = items.length > 1 ? [And(...items)] : items;
+	scope.check = () => {
+		if (scope.error) return false;
+		if (scope.text.length) scope.items.push(scope.items[0]);
+		return true;
+	};
+	scope.exit = parent => {
+		if (scope.matches < 2) {
+			parent.error = true;
+		} else {
+			parent.text = scope.text;
+			parent.matches++;
+			append(parent.tokens, scope.tokens);
+		}
+	};
+	ctx.stack.push(scope);
+};
+```
