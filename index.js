@@ -270,7 +270,7 @@ const Group = (...items) => ctx => {
 
 const One = (...items) => ctx => {
 	const scope = new Scope(ctx.scope().text);
-	scope.items = items.length > 1 ? [And(...items)] : items;
+	append(scope.items, items.length > 1 ? [And(...items)] : items);
 	scope.check = () => {
 		if (scope.error) return false;
 		if (scope.text.length) scope.items.push(scope.items[0]);
@@ -290,7 +290,7 @@ const One = (...items) => ctx => {
 
 const Zero = (...items) => ctx => {
 	const scope = new Scope(ctx.scope().text);
-	scope.items = items.length > 1 ? [And(...items)] : items;
+	append(scope.items, items.length > 1 ? [And(...items)] : items);
 	scope.check = () => {
 		if (scope.error) return false;
 		if (scope.text.length) scope.items.push(scope.items[0]);
@@ -308,7 +308,7 @@ const Zero = (...items) => ctx => {
 
 const Opt = (...items) => ctx => {
 	const scope = new Scope(ctx.scope().text);
-	scope.items = items.length > 1 ? [And(...items)] : items;
+	append(scope.items, items.length > 1 ? [And(...items)] : items);
 	scope.check = () => !scope.error;
 	scope.exit = parent => {
 		if (!scope.error) {
