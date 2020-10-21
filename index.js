@@ -58,7 +58,10 @@ class Token {
 function runSync(text, rules, options = {}) {
 	const main = options.main ?? 'main';
 	const debug = options.debug ?? false;
-	if (rules[main] === undefined) throw new Error('The main rule is not defined.');
+	const exact = options.exact ?? true;
+	const result = options.result ?? 'tokens';
+	if (!['tokens', 'scope'].includes(result)) throw new Error(`Invalid result type "${result}". Valid types are "tokens", "scope".`)
+	if (rules[main] === undefined) throw new Error('The "main" rule is not defined.');
 	const context = new Context(text, rules, options);
 	const root = new Scope(context.text);
 	root.items = [rules[main]];
@@ -101,16 +104,35 @@ function runSync(text, rules, options = {}) {
 				scope.source += match[0];
 				scope.matches++;
 			} else scope.error = true;
+		} else if (typeof item == 'object') {
+			const args = Array.isArray(item) ? item : [item];
+			if (args.length < 2) args.push({});
+			args[1].exact = false;
+			args[1].result = 'scope';
+			args[1].debug = args[1].debug ?? options.debug;
+			try {
+				const res = runSync(scope.text, ...args);
+				scope.text = scope.text.slice(res.source.length);
+				append(scope.tokens, res.tokens);
+				scope.matches++;
+				scope.source += res.source;
+			} catch {
+				scope.error = true;
+			}
 		} else item(context);
 	}
-	if (root.text.length || root.error) error();
-	return root.tokens;
+	if ((exact && root.text.length) || root.error) error();
+	if (result == 'tokens') return root.tokens;
+	else if (result == 'scope') return root;
 }
 
 async function runAsync(text, rules, options = {}) {
 	const main = options.main ?? 'main';
 	const debug = options.debug ?? false;
-	if (rules[main] === undefined) throw new Error('The main rule is not defined.');
+	const exact = options.exact ?? true;
+	const result = options.result ?? 'tokens';
+	if (!['tokens', 'scope'].includes(result)) throw new Error(`Invalid result type "${result}". Valid types are "tokens", "scope".`)
+	if (rules[main] === undefined) throw new Error('The "main" rule is not defined.');
 	const context = new Context(text, rules, options);
 	const root = new Scope(context.text);
 	root.items = [rules[main]];
@@ -127,8 +149,11 @@ async function runAsync(text, rules, options = {}) {
 		if (scope === undefined) break;
 		if (debug) console.log('[SCOPE]', scope);
 		if (!((await scope.check?.()) ?? true) || !scope.items.length) {
+			if (scope === root) break;
 			context.stack.pop();
-			await scope.exit?.(context.scope());
+			const parent = context.scope();
+			parent.source += scope.source;
+			await scope.exit?.(parent);
 			continue;
 		}
 		const item = scope.items.shift();
@@ -138,6 +163,7 @@ async function runAsync(text, rules, options = {}) {
 				scope.text = scope.text.slice(item.length);
 				const end = text.length - scope.text.length;
 				scope.tokens.push(new Token(item, end - item.length, end));
+				scope.source += item;
 				scope.matches++;
 			} else scope.error = true;
 		} else if (item instanceof RegExp) {
@@ -146,12 +172,29 @@ async function runAsync(text, rules, options = {}) {
 				scope.text = scope.text.slice(match[0].length);
 				const end = text.length - scope.text.length;
 				scope.tokens.push(new Token(match[0], end - match[0].length, end));
+				scope.source += match[0];
 				scope.matches++;
 			} else scope.error = true;
+		} else if (typeof item == 'object') {
+			const args = Array.isArray(item) ? item : [item];
+			if (args.length < 2) args.push({});
+			args[1].exact = false;
+			args[1].result = 'scope';
+			args[1].debug = args[1].debug ?? options.debug;
+			try {
+				const res = await run(scope.text, ...args);
+				scope.text = scope.text.slice(res.source.length);
+				append(scope.tokens, res.tokens);
+				scope.matches++;
+				scope.source += res.source;
+			} catch {
+				scope.error = true;
+			}
 		} else await item(context);
 	}
-	if (root.text.length || root.error) error();
-	return root.tokens;
+	if ((exact && root.text.length) || root.error) error();
+	if (result == 'tokens') return root.tokens;
+	else if (result == 'scope') return root;
 }
 
 function run(text, rules, options = {}) {
@@ -307,7 +350,7 @@ const Insert = (...items) => ctx => {
 
 module.exports = {
 	linecolumn, append, prepend,
-	Context, Scope, Token, run,
+	Context, Scope, Token, run, runSync, runAsync,
 	And, Hide, Wrap, Or, Opt, Zero, One,
 	Rule, Group, Insert
 };
