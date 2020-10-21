@@ -350,7 +350,7 @@ const Insert = (...items) => ctx => {
 
 module.exports = {
 	linecolumn, append, prepend,
-	Context, Scope, Token, run, runSync, runAsync,
+	Context, Scope, Token, run,
 	And, Hide, Wrap, Or, Opt, Zero, One,
 	Rule, Group, Insert
 };
