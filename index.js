@@ -81,7 +81,6 @@ function runSync(text, rules, options = {}) {
 			if (scope === root) break;
 			context.stack.pop();
 			const parent = context.scope();
-			parent.source += scope.source;
 			scope.exit?.(parent);
 			continue;
 		}
@@ -152,7 +151,6 @@ async function runAsync(text, rules, options = {}) {
 			if (scope === root) break;
 			context.stack.pop();
 			const parent = context.scope();
-			parent.source += scope.source;
 			await scope.exit?.(parent);
 			continue;
 		}
@@ -210,6 +208,7 @@ const And = (...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
@@ -226,6 +225,7 @@ const Hide = (...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 		}
 	};
@@ -241,6 +241,7 @@ const Wrap = (name, ...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			parent.tokens.push({
 				key: name,
@@ -261,6 +262,7 @@ const Group = (...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			parent.tokens.push(scope.tokens);
 		}
@@ -281,6 +283,7 @@ const One = (...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
@@ -299,6 +302,7 @@ const Zero = (...items) => ctx => {
 	scope.exit = parent => {
 		if (scope.matches) {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
@@ -313,6 +317,7 @@ const Opt = (...items) => ctx => {
 	scope.exit = parent => {
 		if (!scope.error) {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
@@ -329,6 +334,7 @@ const Or = (...items) => ctx => {
 			parent.error = true;
 		} else {
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
