@@ -87,23 +87,36 @@ This is the result of parsing either a raw string or a regular expression.
 ## Customization
 You can define your own combinators and directives for the parser to execute by referring to the documentation above or this example.
 ```js
+const {Scope, And, append} = require('rigidparsing');
 const Two = (...items) => ctx => {
+	// Create a new scope.
 	const scope = new Scope(ctx.scope().text);
-	scope.items = items.length > 1 ? [And(...items)] : items;
+	// Set the items to be added onto the scope.
+	append(scope.items, items.length > 1 ? [And(...items)] : items);
+	// Check every iteration.
 	scope.check = () => {
+		// If there is an error, cancel.
 		if (scope.error) return false;
+		// If there is text remaining, add another.
 		if (scope.text.length) scope.items.push(scope.items[0]);
+		// Continue to the next iteration.
 		return true;
 	};
+	// Whenever the scope exits.
 	scope.exit = parent => {
+		// If there are less than two.
 		if (scope.matches < 2) {
+			// This failed to match.
 			parent.error = true;
 		} else {
+			// Assign the results to the parent.
 			parent.text = scope.text;
+			parent.source += scope.source;
 			parent.matches++;
 			append(parent.tokens, scope.tokens);
 		}
 	};
+	// Push the scope onto the stack.
 	ctx.stack.push(scope);
 };
 ```

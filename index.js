@@ -6,7 +6,7 @@ function linecolumn(index, text) {
 		lines.shift();
 	}
 	return {
-		line: count - lines.length,
+		line: count - lines.length + 1,
 		column: index
 	}
 }
